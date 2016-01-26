@@ -174,19 +174,19 @@ __interrupt void USCI0RX_ISR(void)
    // i_Codec ++ ;
 
   }
-  if(start_flag == 1 && i_Codec == 12)
+  else if(start_flag == 1 && i_Codec == 12)// Use else if NOT just 'if'! Otherwise You will lose frames.
   {
 
 	  if(UCA0RXBUF == 0x02)//command set should be 0x02
 		  prepare_flag = 1;
 
   }
-  if(start_flag == 1 && prepare_flag ==1 && i_Codec == 13)
+  else if(start_flag == 1 && prepare_flag ==1 && i_Codec == 13)
   {
 	  if(UCA0RXBUF == 0x02)// Transparent data transmit command
 		  go_flag = 1;
   }
-  if(start_flag == 1 && prepare_flag ==1 && go_flag ==1 && i_Codec == 14)
+  else if(start_flag == 1 && prepare_flag ==1 && go_flag ==1 && i_Codec == 14)
   {
 	  switch(UCA0RXBUF)  //transmitted data;
 	  {
