@@ -6,27 +6,28 @@
 #define TXD BIT2
 #define RXD BIT1
 const char string[] = { "Hello World\n" };
-unsigned int i; //Counter
+
 int start_flag =0,prepare_flag =0, go_flag = 0;
 /*Predefine for PWM output*/
 #define uint unsigned int
-#define STE 180
+//#define STE 180
 #define MIN 500
-#define MAX 2400
+#define MAX 2500
+#define DEGREE 180
 #define PWM_P 20000
-const uint stepval=(MAX-MIN)/STE;
-uint deg[200]; // about 180 degrees;
-enum {handleSeize,handleRelease};
+const uint stepval=(MAX-MIN)/DEGREE;
+int deg[DEGREE]; // about 180 degrees;
+enum {handleSeize,handleRelease,handleDown,handleUp};
 int handleOption = 100;
-static int i_Codec = 0;
+
 
 /*LUT for map of degree to duty of pwm ouput*/
 void ang_con()
 {
     uint i,degnow=MIN;
-    for(i = 200;i > 0;i--)
+    for(i = DEGREE;i > 0 ;i--)
     {
-        deg[200-i] = degnow;
+        deg[DEGREE-i] = degnow;
         degnow += stepval;
     }
 }
@@ -37,8 +38,9 @@ void clk_init()
 
 
     DCOCTL = 0; // Select lowest DCOx and MODx settings
-    BCSCTL1 = CALBC1_1MHZ; // Set DCO
-    DCOCTL = CALDCO_1MHZ;
+    BCSCTL1 = CALBC1_8MHZ; // Set DCO
+    DCOCTL = CALDCO_8MHZ;
+    BCSCTL2 = DIVS_3;
 
 }
 
@@ -66,9 +68,9 @@ void pwm_init()
     P2SEL |= BIT1 + BIT4;
     TA1CCR0  = PWM_P;   // PWM frequency = PWM_PCLK_Hz / PWM_P ;
     TA1CCTL1 = OUTMOD_7;  //up mode
-    TA1CCR1  = deg[100];   //start from 90 degree;
+    TA1CCR1  = deg[0];   //start from 0 degree;
     TA1CCTL2 = OUTMOD_7;
-    TA1CCR2  = deg[100];  //start from about 90 degrees;
+    TA1CCR2  = deg[0];  //start from about 0 degree;
     TA1CTL   = TASSEL_2 + TACLR + MC_1;//Use SMCLK, reset/set
 }
 
@@ -92,28 +94,45 @@ void move_motor(int motorNo, unsigned int degreeby)
     */
 	//转动角度设置 while(1){
 
-
+//TODO: Find the relations between the degree and the duty of pwm.
 	//FOR test of PWM output 2.1(output 2.4 should be similar)
 	// Go to 0°；+duty 3.0%。
+
+	switch(motorNo)
+	{
+	case 0://Motor1
+		TA1CCR1 = deg[degreeby];
+		// __delay_cycles(1000000); //maybe we should comment this line for
+		 break;
+	case 1: //Motor2
+		TA1CCR2 = deg[degreeby];
+		 //__delay_cycles(1000000);
+		 break;
+	default:
+		break;
+
+	}
+	/*
 	TACCR1 = deg[0];
 	 __delay_cycles(1000000);
 	// Go to 45°；+duty 4.8%。
-	TACCR1 = deg[45];
+	TACCR1 = deg[44];
 	 __delay_cycles(1000000);
 	// Go to 90°; +duty 7.4%.
-	TACCR1 = deg[90];
+	TACCR1 = deg[89];
 	__delay_cycles(1000000);
 	// Go to 135°; +duty 9.8%.
-	TACCR1 = deg[146];
+	TACCR1 = deg[134];
 	 __delay_cycles(1000000);
 	// Go to 180°; +duty 12.3%.
-	TACCR1 = deg[190];
+	TACCR1 = deg[179];
 	__delay_cycles(1000000);
 	// Go to 0°；+duty 3.0%。
 	TACCR1 = deg[0];
 	__delay_cycles(1000000);
 
 
+	*/
 }
 
 int main(void)
@@ -135,12 +154,23 @@ int main(void)
 		case handleSeize:
 			//TODO: output pwm
 			P1OUT ^= BIT6;
-			handleOption = 3;
+			move_motor(0,145);
+			handleOption = -1;
 			break;
 		case handleRelease:
 			//TODO: output pwm
-			handleOption = 3;
+
 			P1OUT ^= BIT0;
+			move_motor(0,0);
+			handleOption = -1;
+			break;
+		case handleDown:
+			move_motor(1,90);
+			handleOption = -1;
+			break;
+		case handleUp:
+			move_motor(1,0);
+			handleOption = -1;
 			break;
 		default:// DO nothing
 			break;
@@ -161,7 +191,7 @@ int main(void)
 __interrupt void USCI0RX_ISR(void)
 {
 //  P1OUT |= RXLED;
-
+	static int i_Codec = 0;
   //TODO : find the start code of Moving the handles
 
   if (UCA0RXBUF == 0xAA) // Starter code  received?
@@ -193,10 +223,15 @@ __interrupt void USCI0RX_ISR(void)
 	  case 'O': //TODO: Enable HandleOpetating, handle-grabbing 0x4f
 		  handleOption = handleSeize ;// = 1;
 		  break;
-	  case 'C'://TODO: release the Handle 0x43
-
+	  case 'S'://TODO: release the Handle 0x43
 		 // handleRelease = 1;
 		  handleOption = handleRelease;
+		  break;
+	  case 'D':// handledown operation
+		  handleOption = handleDown;
+		  break;
+	  case 'U'://handleup operation
+		  handleOption = handleUp;
 		  break;
 	  default:
 		  break;
